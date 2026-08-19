@@ -1,7 +1,7 @@
 {
   "name": "dsh-client-paste-image",
-  "description": "Paste clipboard images as file PATHS only on configured text-only routes: for listed models the paste is intercepted, saved through dsh-drop-caret's session upload route, and the path lands in the composer — vision-capable models keep their native image pipeline untouched. v0.2.1 fixes config delivery (apply's 2nd arg) and reads the route from the composer's own model directory.",
-  "version": "0.2.1",
+  "description": "Paste clipboard images as file PATHS only on configured text-only routes: for listed models the paste is intercepted, saved through dsh-drop-caret's session upload route, and the path lands in the composer — vision-capable models keep their native image pipeline untouched. v0.3.0: host half bridges textOnlyRoutes over HTTP (static client plugins get no module-pipeline config) and the session id comes from the conversation slot.",
+  "version": "0.3.0",
   "type": "module",
   "main": "index.js",
   "exports": {

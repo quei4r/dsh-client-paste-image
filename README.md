@@ -22,7 +22,7 @@ DeepSeek Harness（DSH）Web 客户端插件：**粘贴图片 → 落盘为文�
 - **Alt+粘贴**：绕过拦截，走产品原生行为
 - 操作反馈：底部 toast（成功显示文件名，失败显示原因）
 
-> v0.2.1 修复：插件 config 必须从 `apply(ctx, config)` 的**第二个参数**读取（cordis 不把它暴露为 ctx 属性，旧版读 `ctx.config` 恒为空导致永不拦截）；路由判断改用 composer 同款 `modelDirectories` 服务的会话当前选择（`store.getSnapshot().current`，composer 挂载即加载），不再依赖对 `llm`/`agentDefaultModel` 的猜测式读取。新增浏览器侧冒烟测试 `test/smoke.mjs`（10 例：门控、glob、fail-safe、Alt 绕过、纯文本、非 composer）。
+> v0.3.0 重写接线（v0.2.x 的门控从未生效，两个根因）：① 静态 client 插件**收不到任何 config**——boot manifest 只带 id/url/rev/inject，`loader.create({name})` 也不传，host 半现在通过 `GET /plugin-paste-image-config`（loopback/Origin 信任闸门）把 `cordis.patch.yml` 里的 `textOnlyRoutes` 桥接给浏览器，client 启动时拉取缓存；② 会话 id 不能从服务属性读——conversation 插槽把 `sessionId` 经 `inject(sessionId)` 喂给注入组件（drop-caret 同款机制），隐形探测组件记录给粘贴监听器。配置未到达/获取失败一律不拦截（fail-safe）。含浏览器侧冒烟测试 `test/smoke.mjs`（11 例：门控、glob、启动竞态、fail-safe、Alt 绕过、纯文本、非 composer）。
 
 配置示例：
 

@@ -10,10 +10,20 @@
  * hand the path to an image-capable model (e.g. via a workflow per-agent
  * model override) when the image actually needs to be looked at.
  *
- * Requires dsh-drop-caret to be installed (its route + reference source
- * codec are reused; we register our own trigger source with the same wire
- * format). Plain-text pastes and file drops are untouched. Alt+paste
- * bypasses the interception.
+ * Two wiring facts learned the hard way (v0.3.0):
+ *  - Static client plugins get NO config through the module pipeline (the
+ *    boot manifest carries only id/url/rev/inject). The host half bridges
+ *    `textOnlyRoutes` over GET /plugin-paste-image-config; we cache it at
+ *    boot. Until it arrives (or if it fails) we intercept NOTHING.
+ *  - The session id cannot be read off a service property; the
+ *    conversation slots pass it to the injected component's props via
+ *    `inject(sessionId)` (the same mechanism dsh-drop-caret rides). An
+ *    invisible slot component records it for the paste listener.
+ *
+ * Requires dsh-drop-caret (upload route + reference source codec are
+ * reused; we register our own trigger source with the same wire format).
+ * Plain-text pastes and file drops are untouched. Alt+paste bypasses.
+ * Vision-capable / unlisted routes: zero side effects, native pipeline.
  */
 window.__ModuleLoader__.load({
   id: 'dsh-client-paste-image',
@@ -30,6 +40,14 @@ window.__ModuleLoader__.load({
 
     var SOURCE_NAME = 'paste-image';
     var UPLOAD_ROUTE = '/api/dsh-drop';
+    var CONFIG_ROUTE = '/plugin-paste-image-config';
+
+    /* null = config not arrived yet → never intercept (fail-safe).
+     * array (possibly empty) = what the host bridge served. */
+    var routesCache = null;
+    /* Session id recorded by the invisible conversation-slot probe; null
+     * until the composer mounts a session (e.g. home screen). */
+    var currentSessionId = null;
 
     var toastTimer = null;
     function toast(doc, text, isErr) {
@@ -115,19 +133,32 @@ window.__ModuleLoader__.load({
       reader.readAsArrayBuffer(file);
     }
 
+    /* Pull the host-bridged textOnlyRoutes once at boot. Any failure (or
+     * a non-array) collapses to [] — i.e. this plugin stops intercepting
+     * and the native pipeline runs everywhere. */
+    function loadRoutes(doc) {
+      fetch(CONFIG_ROUTE, { signal: AbortSignal.timeout(10_000) })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) {
+          routesCache = data && Array.isArray(data.textOnlyRoutes)
+            ? data.textOnlyRoutes.map(String)
+            : [];
+        })
+        .catch(function () {
+          routesCache = [];
+          toast(doc, 'paste-image：配置获取失败，本次不拦截', true);
+        });
+    }
+
     /* Should THIS paste be converted to a path? Only for models the user
-     * listed as text-only (config `textOnlyRoutes`: "provider/model" glob
-     * patterns). Vision-capable sessions keep the native paste pipeline —
-     * thumbnails, image blocks, admission — completely untouched. Empty
-     * list = convert nowhere (fail-safe: native behavior everywhere).
-     *
-     * Route data comes from the same per-session ModelDirectory the
-     * composer's model seat uses (modelDirectories service); that seat
-     * loads the store on mount, so the synchronous snapshot read is
-     * reliable at paste time. Any gap (service missing, directory not
-     * yet loaded, unknown session) fails safe to the native pipeline.
-     * NOTE: config is apply()'s SECOND argument — the dynamic ctx guard
-     * does not expose plugin config as a ctx property. */
+     * listed as text-only (host-bridged `textOnlyRoutes`: "provider/model"
+     * glob patterns). Route data comes from the same per-session
+     * ModelDirectory the composer's model seat uses (modelDirectories
+     * service; that seat loads the store on mount, so the synchronous
+     * snapshot read is reliable at paste time). Vision-capable sessions
+     * keep the native paste pipeline — thumbnails, image blocks,
+     * admission — completely untouched. Every gap (config not arrived,
+     * directory not loaded, service missing) fails safe to native. */
     function routeMatches(pattern, provider, model) {
       var pat = pattern.split('/');
       if (pat.length !== 2) return false;
@@ -137,9 +168,8 @@ window.__ModuleLoader__.load({
       return rx(pp).test(provider) && rx(mm).test(model);
     }
 
-    function shouldConvert(cfg, ctx, sessionId) {
-      var routes = Array.isArray(cfg && cfg.textOnlyRoutes) ? cfg.textOnlyRoutes : [];
-      if (routes.length === 0) return false;
+    function shouldConvert(routes, ctx, sessionId) {
+      if (routes === null || routes.length === 0) return false;
       var directories;
       try { directories = ctx.get('modelDirectories'); } catch (e) { return false; }
       if (directories === undefined || directories === null || typeof directories.directoryFor !== 'function') return false;
@@ -154,9 +184,19 @@ window.__ModuleLoader__.load({
       return false;
     }
 
-    function apply(ctx, config) {
-      var cfg = config || {};
+    /* Invisible conversation-slot probe: the slots system hands the owning
+     * session id to `inject(sessionId)`, whose return value becomes the
+     * component's props. Recording it here is the reliable way to know
+     * which session the composer belongs to (drop-caret does the same). */
+    function SessionProbe(props) {
+      currentSessionId = props.sessionId || null;
+      return null;
+    }
+
+    function apply(ctx) {
       var doc = document;
+
+      loadRoutes(doc);
 
       ctx.effect(function () {
         var el = doc.createElement('style');
@@ -179,9 +219,25 @@ window.__ModuleLoader__.load({
         });
       });
 
-      /* Page-lifetime paste listener; no React mount needed because the
-       * session scope for insertion is resolved per-paste from the
-       * sessions service (single-session GUI). */
+      /* Seat the session probe into the composer's slot row. */
+      ctx.effect(function () {
+        return ctx.slots.inject('conversation.input.left', function () {
+          return ctx.slots.register(
+            {
+              name: 'conversation.input.left',
+              id: 'dsh-client-paste-image',
+              order: 0,
+              inject: function (sessionId) {
+                return { sessionId: sessionId };
+              }
+            },
+            SessionProbe
+          );
+        });
+      });
+
+      /* Page-lifetime paste listener; the session id comes from the slot
+       * probe above, the scope for insertion from ctx.sessions.scope(). */
       ctx.effect(function () {
         var onPaste = function (e) {
           if (e.altKey) return;
@@ -205,9 +261,9 @@ window.__ModuleLoader__.load({
           // unlisted routes never see any side effect from us — the native
           // paste pipeline (thumbnail, draft attachment, admission) runs
           // exactly as without this plugin.
-          var sessionId = ctx.sessions && ctx.sessions.selected ? ctx.sessions.selected : null;
+          var sessionId = currentSessionId;
           if (sessionId === null || sessionId === undefined) return;
-          if (!shouldConvert(cfg, ctx, sessionId)) return;
+          if (!shouldConvert(routesCache, ctx, sessionId)) return;
           e.preventDefault();
           e.stopPropagation();
           if (e.stopImmediatePropagation) e.stopImmediatePropagation();
@@ -225,7 +281,7 @@ window.__ModuleLoader__.load({
     }
 
     exports.apply = apply;
-    exports.inject = ['inputTriggers', 'sessions'];
+    exports.inject = ['slots', 'inputTriggers', 'sessions'];
     return module.exports;
   }
 });

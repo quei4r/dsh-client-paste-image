@@ -22,7 +22,7 @@ Text-only models (DeepSeek / GLM, etc.) cannot accept pasted images — the comp
 - **Alt+paste**: bypasses the interception and uses the product's native behavior
 - Feedback: a bottom toast (filename on success, reason on failure)
 
-> v0.2.1 fix: plugin config must be read from `apply(ctx, config)`'s **second argument** (cordis does not expose it as a ctx property — the old `ctx.config` read was always empty, so the gate never fired); the route check now reads the session's current selection from the same `modelDirectories` service the composer uses (`store.getSnapshot().current`, loaded on mount by the composer seat) instead of guessing at `llm`/`agentDefaultModel`. Adds a browser-side smoke test `test/smoke.mjs` (10 cases: gating, globs, fail-safe paths, Alt bypass, plain text, non-composer).
+> v0.3.0 rewired the plumbing (the v0.2.x gate never fired, two root causes): ① static client plugins receive **no config at all** — the boot manifest carries only id/url/rev/inject and `loader.create({name})` passes none, so the host half now bridges `textOnlyRoutes` from `cordis.patch.yml` to the browser over `GET /plugin-paste-image-config` (loopback/Origin trust fence), cached by the client at boot; ② the session id cannot be read off a service property — the conversation slots hand `sessionId` to the injected component via `inject(sessionId)` (the same mechanism dsh-drop-caret rides), and an invisible probe component records it for the paste listener. Config-not-yet-arrived / fetch-failure never intercept (fail-safe). Ships a browser-side smoke test `test/smoke.mjs` (11 cases: gating, globs, boot races, fail-safe paths, Alt bypass, plain text, non-composer).
 
 Example config:
 
