@@ -22,6 +22,8 @@ DeepSeek Harness（DSH）Web 客户端插件：**粘贴图片 → 落盘为文�
 - **Alt+粘贴**：绕过拦截，走产品原生行为
 - 操作反馈：底部 toast（成功显示文件名，失败显示原因）
 
+> v0.2.1 修复：插件 config 必须从 `apply(ctx, config)` 的**第二个参数**读取（cordis 不把它暴露为 ctx 属性，旧版读 `ctx.config` 恒为空导致永不拦截）；路由判断改用 composer 同款 `modelDirectories` 服务的会话当前选择（`store.getSnapshot().current`，composer 挂载即加载），不再依赖对 `llm`/`agentDefaultModel` 的猜测式读取。新增浏览器侧冒烟测试 `test/smoke.mjs`（10 例：门控、glob、fail-safe、Alt 绕过、纯文本、非 composer）。
+
 配置示例：
 
 ```yaml

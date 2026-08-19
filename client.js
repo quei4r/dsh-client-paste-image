@@ -119,7 +119,15 @@ window.__ModuleLoader__.load({
      * listed as text-only (config `textOnlyRoutes`: "provider/model" glob
      * patterns). Vision-capable sessions keep the native paste pipeline —
      * thumbnails, image blocks, admission — completely untouched. Empty
-     * list = convert nowhere (fail-safe: native behavior everywhere). */
+     * list = convert nowhere (fail-safe: native behavior everywhere).
+     *
+     * Route data comes from the same per-session ModelDirectory the
+     * composer's model seat uses (modelDirectories service); that seat
+     * loads the store on mount, so the synchronous snapshot read is
+     * reliable at paste time. Any gap (service missing, directory not
+     * yet loaded, unknown session) fails safe to the native pipeline.
+     * NOTE: config is apply()'s SECOND argument — the dynamic ctx guard
+     * does not expose plugin config as a ctx property. */
     function routeMatches(pattern, provider, model) {
       var pat = pattern.split('/');
       if (pat.length !== 2) return false;
@@ -129,33 +137,25 @@ window.__ModuleLoader__.load({
       return rx(pp).test(provider) && rx(mm).test(model);
     }
 
-    function shouldConvert(ctx, sessionId) {
-      var cfg = ctx.config || {};
-      var routes = Array.isArray(cfg.textOnlyRoutes) ? cfg.textOnlyRoutes : [];
+    function shouldConvert(cfg, ctx, sessionId) {
+      var routes = Array.isArray(cfg && cfg.textOnlyRoutes) ? cfg.textOnlyRoutes : [];
       if (routes.length === 0) return false;
-      var scope = ctx.sessions.scope(sessionId);
-      if (scope === undefined || scope === null) return false;
-      var llm = scope.get('llm');
-      if (llm === undefined || typeof llm.resolveModelInfo !== 'function') return false;
-      /* Selection for the session's agent; fall back to the session's
-       * persisted header when the live selection face is not exposed. */
-      var provider = null;
-      var model = null;
-      try {
-        var sel = scope.get('agentDefaultModel');
-        if (sel && typeof sel.source === 'function') {
-          var entry = sel.source();
-          if (entry && typeof entry === 'object') { provider = entry.provider; model = entry.model; }
-        }
-      } catch (e) { /* fall through */ }
-      if (provider === null || model === null) return false;
+      var directories;
+      try { directories = ctx.get('modelDirectories'); } catch (e) { return false; }
+      if (directories === undefined || directories === null || typeof directories.directoryFor !== 'function') return false;
+      var directory;
+      try { directory = directories.directoryFor(sessionId); } catch (e) { return false; }
+      if (directory === undefined || directory === null || !directory.store || typeof directory.store.getSnapshot !== 'function') return false;
+      var current = directory.store.getSnapshot().current;
+      if (current === null || current === undefined) return false;
       for (var i = 0; i < routes.length; i++) {
-        if (routeMatches(String(routes[i]), String(provider), String(model))) return true;
+        if (routeMatches(String(routes[i]), String(current.provider), String(current.model))) return true;
       }
       return false;
     }
 
-    function apply(ctx) {
+    function apply(ctx, config) {
+      var cfg = config || {};
       var doc = document;
 
       ctx.effect(function () {
@@ -207,7 +207,7 @@ window.__ModuleLoader__.load({
           // exactly as without this plugin.
           var sessionId = ctx.sessions && ctx.sessions.selected ? ctx.sessions.selected : null;
           if (sessionId === null || sessionId === undefined) return;
-          if (!shouldConvert(ctx, sessionId)) return;
+          if (!shouldConvert(cfg, ctx, sessionId)) return;
           e.preventDefault();
           e.stopPropagation();
           if (e.stopImmediatePropagation) e.stopImmediatePropagation();

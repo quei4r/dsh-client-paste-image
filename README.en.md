@@ -22,6 +22,8 @@ Text-only models (DeepSeek / GLM, etc.) cannot accept pasted images — the comp
 - **Alt+paste**: bypasses the interception and uses the product's native behavior
 - Feedback: a bottom toast (filename on success, reason on failure)
 
+> v0.2.1 fix: plugin config must be read from `apply(ctx, config)`'s **second argument** (cordis does not expose it as a ctx property — the old `ctx.config` read was always empty, so the gate never fired); the route check now reads the session's current selection from the same `modelDirectories` service the composer uses (`store.getSnapshot().current`, loaded on mount by the composer seat) instead of guessing at `llm`/`agentDefaultModel`. Adds a browser-side smoke test `test/smoke.mjs` (10 cases: gating, globs, fail-safe paths, Alt bypass, plain text, non-composer).
+
 Example config:
 
 ```yaml
