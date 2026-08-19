@@ -9,6 +9,11 @@
     "./client": "./client.js",
     "./package.json": "./package.json"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quei4r/dsh-client-paste-image.git"
+  },
+  "author": "quei4r",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

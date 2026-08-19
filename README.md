@@ -50,12 +50,14 @@ cp -r dsh-client-paste-image ~/.dsh/profiles/web/node_modules/
 
 （包内 `cordis.patch.yml` 供 `dsh plugin add` / 市场安装使用。）
 
+**重启 `dsh web` 生效**：v0.3.0 起宿主半注册了 `GET /plugin-paste-image-config` 配置桥接路由（静态 client 插件收不到模块管线 config，`textOnlyRoutes` 靠它过河），host 路由只在启动时注册——只刷新页面不够。前置依赖 **dsh-drop-caret**（上传路由 `POST /api/dsh-drop` 由它提供）。
+
 ## 文件说明
 
 | 文件 | 说明 |
 |------|------|
 | `client.js` | 浏览器侧：粘贴拦截 + 上传 + 路径引用插入（复用 drop-caret 机制） |
-| `index.js` | 宿主侧空占位（loader 要求存在） |
+| `index.js` | 宿主半：配置桥接路由 `GET /plugin-paste-image-config`（把 `textOnlyRoutes` 喂给浏览器，loopback/Origin 信任闸门） |
 
 兼容性：随 `@deepseek-ai/dsh` 0.1.0-rc.6 测试通过。
 

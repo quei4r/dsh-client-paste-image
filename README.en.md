@@ -50,12 +50,14 @@ Add to the `- insert:` list of `~/.dsh/profiles/web/cordis.patch.yml`:
 
 (The bundled `cordis.patch.yml` is for `dsh plugin add` / marketplace installs.)
 
+**Restart `dsh web` to activate**: since v0.3.0 the host half registers the `GET /plugin-paste-image-config` bridge route (static client plugins receive no config through the module pipeline — `textOnlyRoutes` crosses over via this route), and host routes only register at startup — a page refresh alone is not enough. Requires **dsh-drop-caret** as a prerequisite (it provides the `POST /api/dsh-drop` upload route).
+
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `client.js` | Browser half: paste interception + upload + path-reference insertion (reuses the drop-caret mechanism) |
-| `index.js` | Host-side empty placeholder (required by the loader) |
+| `index.js` | Host half: the `GET /plugin-paste-image-config` config bridge route (feeds `textOnlyRoutes` to the browser, loopback/Origin trust fence) |
 
 Compatibility: tested against `@deepseek-ai/dsh` 0.1.0-rc.6.
 
