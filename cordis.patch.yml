@@ -1,0 +1,3 @@
+- insert:
+    - id: ui-paste-image
+      name: dsh-client-paste-image

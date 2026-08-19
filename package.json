@@ -1,0 +1,37 @@
+{
+  "name": "dsh-client-paste-image",
+  "description": "Paste clipboard images as file PATHS only on configured text-only routes: for listed models the paste is intercepted, saved through dsh-drop-caret's session upload route, and the path lands in the composer — vision-capable models keep their native image pipeline untouched.",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "clipboard",
+    "image",
+    "text-only"
+  ],
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md"
+  ],
+  "private": true
+}
