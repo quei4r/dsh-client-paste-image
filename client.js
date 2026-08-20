@@ -125,6 +125,10 @@ window.__ModuleLoader__.load({
             if (!data || typeof data.path !== 'string') throw new Error('bad response');
             insertPathAtEnd(actx, data.path);
             toast(doc, '图片已存为路径：' + basename(data.path));
+          }).catch(function (err) {
+            // v0.3.1: a malformed response or an insertion failure used to
+            // die as an unhandled rejection — silent for the user.
+            toast(doc, '图片入稿失败：' + String((err && err.message) || err).slice(0, 60), true);
           });
         }, function (err) {
           toast(doc, '图片上传失败：' + String((err && err.message) || err).slice(0, 60), true);
@@ -164,7 +168,14 @@ window.__ModuleLoader__.load({
       if (pat.length !== 2) return false;
       var pp = pat[0].trim();
       var mm = pat[1].trim();
-      var rx = function (s) { return new RegExp('^' + s.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'); };
+      // v0.3.1: escape ? too (a pattern containing ? or unbalanced parens
+      // used to make RegExp() throw inside the paste listener); any
+      // malformed pattern now simply matches nothing.
+      var rx = function (s) {
+        try {
+          return new RegExp('^' + s.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+        } catch (e) { return /$a^/; }
+      };
       return rx(pp).test(provider) && rx(mm).test(model);
     }
 
